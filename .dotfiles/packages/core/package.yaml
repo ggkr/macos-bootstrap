@@ -1,5 +1,6 @@
 brew:
   formulae:
+    - git
     - starship
     - antidote # zsh plugins manager
     - vim
@@ -15,10 +16,14 @@ brew:
     - font-hack-nerd-font
     - font-sf-mono-nerd-font
 
+config_copy: # starter config files as these change between endpoints
+  .config/git/.gitconfig: ~/.gitconfig
+
 config_links:
   .config/.zshrc: ~/.zshrc
   .config/vim/.vimrc: ~/.vimrc
   .config/starship/starship.toml: ~/.config/starship.toml
+  .config/git/.gitignore_global: ~/.gitignore_global
 
 antidote:
   - zsh-users/zsh-autosuggestions
