@@ -1,0 +1,10 @@
+function find_k_rolebinding() {
+  if [[ -n $1 ]]; then
+    SERVICE_ACCOUNT_NAME=$1
+  else
+    echo "Please enter the service account to search related roles: "
+    read SERVICE_ACCOUNT_NAME
+  fi
+  kubectl get rolebindings --all-namespaces -o json | jq --arg sa "$SERVICE_ACCOUNT_NAME" '.items[] | select(.subjects[]?.kind=="ServiceAccount" and .subjects[]?.name==$sa)' | yq eval -P
+  kubectl get clusterrolebindings -o json | jq --arg sa "$SERVICE_ACCOUNT_NAME" '.items[] | select(.subjects[]?.kind=="ServiceAccount" and .subjects[]?.name==$sa)' | yq eval -P
+}

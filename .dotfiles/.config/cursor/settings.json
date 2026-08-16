@@ -1,0 +1,26 @@
+{
+  "cursor.telemetry.enabled": false,
+  "editor.formatOnSave": true,
+  "window.autoDetectColorScheme": false,
+  "workbench.colorTheme": "Default Dark+",
+  "terminal.integrated.fontSize": 13,
+  "editor.fontLigatures": true,
+  "editor.minimap.enabled": false,
+  "editor.renderWhitespace": "selection",
+  "editor.rulers": [
+    80,
+    120
+  ],
+  "editor.lineHeight": 1.6,
+  "files.autoSave": "onFocusChange",
+  "files.autoSaveDelay": 1000,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "workbench.editor.enablePreview": false,
+  "explorer.confirmDelete": false,
+  "explorer.confirmDragAndDrop": false,
+  "files.exclude": {
+    "**/.idea": true
+  }
+}

@@ -1,0 +1,60 @@
+function fix_deprecated_helm_apis() {
+  backup_base="$HOME/tmp/secret_backups" # change to /tmp if do not want to store
+
+  if [[ -n $1 ]]; then
+    old_api=$1
+  else
+    echo "Please enter the deprecated API: "
+    read old_api
+  fi
+
+  if [[ -n $2 ]]; then
+    new_api=$2
+  else
+    echo "Please enter the new API to replace with: "
+    read new_api
+  fi
+
+  if [[ -n $3 ]]; then
+    namespace_flag="-n $3"
+  else
+    namespace_flag="--all-namespaces"
+  fi
+
+  if [[ -n $4 ]]; then
+    release_name=$4
+    helm_cmd="helm list -a $namespace_flag | grep $release_name"
+  else
+    helm_cmd="helm list -a $namespace_flag | tail -n +2"
+  fi
+
+  # echo "old_api: $old_api"
+  # echo "new_api: $new_api"
+  # echo "namespace_flag: $namespace_flag"
+  # echo "release_name: $release_name"
+  # echo "helm_cmd: $helm_cmd"
+  
+
+  eval $helm_cmd | awk '{print $1"\t"$2"\t"$3}'> /tmp/releases.out
+  
+  while read release namespace revision; do
+    secret_name="sh.helm.release.v1.${release}.v${revision}"
+    backup_location="$backup_base/$namespace/"
+    backup_file="${backup_location}/${secret_name}.yaml"
+    # echo "release: $release"
+    # echo "namespace: $namespace"
+    # echo "revision: $revision"
+    mkdir -p $backup_location
+    kubectl get secret ${secret_name} -n ${namespace} -o yaml  > $backup_file
+    # echo "bookmark 1"
+    cat $backup_file | yq -r .data.release - | base64 -d | base64 -d | gzip -d > /tmp/release.data.decoded
+    # echo "bookmark 2 $backup_file"
+    if ! grep -q $old_api /tmp/release.data.decoded; then
+      continue  # old api not used
+    fi
+    cat /tmp/release.data.decoded | sed "s|$old_api|$new_api|g" | gzip | base64 | base64 > /tmp/release.data.new
+    cat $backup_file | yq -r ". | del(.metadata.uid, .metadata.resourceVersion, .metadata.selfLink, .metadata.creationTimestamp, .metadata.labels.modifiedAt) | .data.release = \"$(cat /tmp/release.data.new)\"" > /tmp/new_${release}.yml   
+    # echo "bookmark 3 $release"
+    kubectl apply -f /tmp/new_${release}.yml
+  done </tmp/releases.out
+}

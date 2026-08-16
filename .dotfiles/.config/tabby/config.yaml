@@ -1,0 +1,14 @@
+configVersion: 4
+terminal:
+  font: "JetBrainsMono Nerd Font"
+  fontSize: 13
+  lineHeight: 1.2
+  cursor:
+    style: "block"
+    blink: true
+  colorScheme: "Standardized Dark"
+  copyOnSelect: true
+  rightClick: "paste"
+appearance:
+  vibrancy: true
+  theme: "dark"

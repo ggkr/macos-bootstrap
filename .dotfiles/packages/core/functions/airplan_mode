@@ -1,0 +1,20 @@
+function airplan_mode() {
+  # First time setup you must configure your locations via system settings:
+  # ============================================================================
+  # Go to the Network pane of System Preferences, you'll see a Location popup menu at the top of the window.
+  # Click on that menu and choose Edit Locations. Click on the + icon to add a new location, then enter a name, such as AirplaneMode. Click on Done.
+  #
+  # Next, choose that location in the Location menu, and click on each available network interface in the list at the left of the window.
+  # Click on the Configure iPv4 menu, and choose Off. For Wi-Fi, just click on the Turn Wi-Fi Off button. Click Apply, and this location will block all network activity.
+  #
+
+  if [[ -n $1 ]]; then
+    if [[ "$1" == "on" ]]; then
+      (sudo networksetup -switchtolocation AirplaneMode > /dev/null) && echo "Airplane mode Active"
+    else
+      (sudo networksetup -switchtolocation Automatic > /dev/null) && echo "Airplane mode Deactivated"
+    fi
+  else
+    networksetup -getcurrentlocation 
+  fi
+}

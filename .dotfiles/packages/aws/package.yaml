@@ -1,0 +1,13 @@
+required_packages:
+  - python
+brew:
+  formulae:
+    - awscli
+
+git:
+  - url: https://github.com/ggkr/generic-devops-scripts.git
+    repo_path: aws/s3range_read.py
+    target_path: ~/.tools/aws/
+
+config_links:
+  .config/aws/config: ~/.aws/config

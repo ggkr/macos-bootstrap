@@ -1,0 +1,27 @@
+brew:
+  formulae:
+    - curl
+    - wget
+    - starship
+    - antidote # zsh plugins manager
+    - vim
+    - gemini-cli
+  casks:
+    - raycast # spotlight alternative + extended clipboard
+    - eqmac # manage EQ settings for audio devices (mac doesn't allow adjusting volume for external devices)
+    - google-drive
+    - google-gemini
+    - zen # browser
+    - font-jetbrains-mono-nerd-font
+    - font-ubuntu-nerd-font
+    - font-hack-nerd-font
+    - font-sf-mono-nerd-font
+
+config_links:
+  .config/.zshrc: ~/.zshrc
+  .config/vim/.vimrc: ~/.vimrc
+  .config/starship/starship.toml: ~/.config/starship.toml
+
+antidote:
+  - zsh-users/zsh-autosuggestions
+  - zsh-users/zsh-syntax-highlighting

@@ -1,0 +1,9 @@
+function get_ec2_private_ipv4() {
+  if [[ "$i" == "i-*"  ]]; then
+    instance_id=$1
+  else
+    instance_id=$(get_ec2_id_by_name $1)
+  fi
+
+  aws ec2 describe-instances --filters "Name=tag:Name,Values=$instance_name" --output text --query 'Reservations[*].Instances[*].NetworkInterfaces[*].PrivateIpAddress'
+}

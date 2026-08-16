@@ -1,0 +1,35 @@
+---
+- name: Bootstrap macOS development environment
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars_files:
+    - vars.yaml
+
+  handlers:
+    - name: Restart SystemUIServer
+      ansible.builtin.command: killall SystemUIServer
+      changed_when: true
+      failed_when: false
+      listen: restart system ui
+
+    - name: Restart Finder
+      ansible.builtin.command: killall Finder
+      changed_when: true
+      failed_when: false
+      listen: restart finder
+
+    - name: Restart Dock
+      ansible.builtin.command: killall Dock
+      changed_when: true
+      failed_when: false
+      listen: restart dock
+
+  tasks:
+    - name: Run installation tasks
+      ansible.builtin.import_tasks: tasks/installations.yaml
+
+    - name: Run configuration tasks
+      ansible.builtin.include_tasks: tasks/system-configurations.yaml
+      when: configure_system_defaults | default(false) | bool

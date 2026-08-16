@@ -1,0 +1,394 @@
+# =========================================================================
+# 1. SETUP & DIRECTORY CREATION
+# =========================================================================
+- name: Ensure target Zsh configuration directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ base_config_path }}"
+    - "{{ zsh_config_path }}"
+    - "{{ zsh_config_path }}/env.d"
+    - "{{ zsh_config_path }}/functions"
+    - "{{ zsh_config_path }}/completions"
+    
+# =========================================================================
+# 2. LOAD PACKAGE DEFINITIONS & RESOLVE DEPENDENCIES
+# =========================================================================
+- name: Find all available package.yaml files in dotfiles
+  ansible.builtin.find:
+    paths: "{{ dotfiles_repo }}/packages"
+    patterns: "package.yaml"
+    recurse: true
+  register: found_pkg_files
+
+- name: Load ALL available package definitions into memory
+  ansible.builtin.include_vars:
+    file: "{{ item.path }}"
+    name: "all_pkgs_{{ item.path | dirname | basename }}"
+  loop: "{{ found_pkg_files.files }}"
+
+- name: Build complete dictionary of all available packages
+  ansible.builtin.set_fact:
+    all_package_defs: >-
+      {{
+        all_package_defs | default({}) | combine({
+          item.path | dirname | basename: lookup('vars', 'all_pkgs_' ~ (item.path | dirname | basename))
+        })
+      }}
+  loop: "{{ found_pkg_files.files }}"
+
+- name: Resolve all required_packages recursively
+  ansible.builtin.set_fact:
+    resolved_packages: >-
+      {%- set packages = install_packages | list -%}
+      {%- set resolved = [] -%}
+      {%- for _ in range(10) -%}
+        {%- for pkg in packages -%}
+          {%- if pkg not in resolved -%}
+            {%- set _ = resolved.append(pkg) -%}
+            {%- set pkg_def = all_package_defs.get(pkg, {}) -%}
+            {%- if pkg_def -%}
+              {%- set deps = pkg_def.required_packages | default(pkg_def.required_groups | default([])) -%}
+              {%- for dep in deps -%}
+                {%- if dep not in packages -%}
+                  {%- set _ = packages.append(dep) -%}
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endfor -%}
+      {{ resolved }}
+
+- name: Display final resolved list of installed packages
+  ansible.builtin.debug:
+    msg: "User requested {{ install_packages }}. Fully resolved packages: {{ resolved_packages }}"
+
+- name: Set active package definitions based on resolved list
+  ansible.builtin.set_fact:
+    active_package_defs: >-
+      {%- set defs = [] -%}
+      {%- for pkg in resolved_packages -%}
+        {%- if pkg in all_package_defs -%}
+          {%- set _ = defs.append(all_package_defs[pkg]) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ defs }}
+
+# =========================================================================
+# 3. EXTRACT & INSTALL PACKAGES
+# =========================================================================
+- name: Extract active formulae and casks
+  ansible.builtin.set_fact:
+    active_formulae: >-
+      {%- set list = [] -%}
+      {%- for pkg in active_package_defs -%}
+        {%- if pkg.brew is defined and pkg.brew.formulae is defined -%}
+          {%- if pkg.brew.formulae is string -%}
+            {%- set _ = list.append(pkg.brew.formulae) -%}
+          {%- else -%}
+            {%- set _ = list.extend(pkg.brew.formulae) -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ list | unique }}
+    active_casks: >-
+      {%- set list = [] -%}
+      {%- for pkg in active_package_defs -%}
+        {%- if pkg.brew is defined and pkg.brew.casks is defined -%}
+          {%- if pkg.brew.casks is string -%}
+            {%- set _ = list.append(pkg.brew.casks) -%}
+          {%- else -%}
+            {%- set _ = list.extend(pkg.brew.casks) -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ list | unique }}
+    active_curls: >-
+      {%- set list = [] -%}
+      {%- for pkg in active_package_defs -%}
+        {%- if pkg.curl is defined -%}
+          {%- if pkg.curl is string -%}
+            {%- set _ = list.append(pkg.curl) -%}
+          {%- else -%}
+            {%- set _ = list.extend(pkg.curl) -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ list | unique }}
+    active_shell_scripts: >-
+      {%- set list = [] -%}
+      {%- for pkg in active_package_defs -%}
+        {%- if pkg.shell is defined -%}
+          {%- for name, script in pkg.shell.items() -%}
+            {%- set _ = list.append({'name': name, 'script': script}) -%}
+          {%- endfor -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ list }}
+    active_config_links: >-
+      {%- set list = [] -%}
+      {%- for pkg in active_package_defs -%}
+        {%- if pkg.config_links is defined -%}
+          {%- for src, dest in pkg.config_links.items() -%}
+            {%- set _ = list.append({'src': src, 'dest': dest}) -%}
+          {%- endfor -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ list }}
+    active_copy_files: >-
+      {%- set list = [] -%}
+      {%- for pkg in active_package_defs -%}
+        {%- if pkg.config_copy is defined -%}
+          {%- for src, dest in pkg.config_copy.items() -%}
+            {%- set _ = list.append({'src': src, 'dest': dest}) -%}
+          {%- endfor -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ list }}
+    active_git_files: >-
+      {%- set list = [] -%}
+      {%- for pkg in active_package_defs -%}
+        {%- if pkg.git is defined -%}
+          {%- if pkg.git is string -%}
+            {%- set _ = list.append(pkg.git) -%}
+          {%- else -%}
+            {%- for git_item in pkg.git -%}
+              {%- set _ = list.append(git_item) -%}
+            {%- endfor -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ list }}
+
+- name: Ensure Homebrew taps are present (if needed)
+  community.general.homebrew_tap:
+    name: "{{ item | regex_replace('/[^/]+$', '') }}"
+    state: present
+  loop: "{{ active_formulae | select('match', '.*/.*/.*') | list }}"
+
+- name: Install Homebrew Formulae
+  community.general.homebrew:
+    name: "{{ active_formulae }}"
+    state: present
+  when: active_formulae | length > 0
+
+- name: Install Homebrew Casks
+  community.general.homebrew_cask:
+    name: "{{ active_casks }}"
+    state: present
+  when: active_casks | length > 0
+
+- name: Execute curl installation scripts
+  ansible.builtin.shell:
+    cmd: "curl -LsSf {{ item }} | sh"
+  loop: "{{ active_curls }}"
+  when: active_curls | length > 0
+  changed_when: false # Scripts are idempotent, cannot track changes
+  failed_when: "curl_results.rc != 0"  # Enforce error tracking
+
+- name: Execute shell scripts from package definitions
+  ansible.builtin.shell:
+    cmd: "{{ item.script }}"
+    executable: /bin/bash
+  loop: "{{ active_shell_scripts }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: active_shell_scripts | length > 0
+  register: shell_results
+  changed_when: false # Scripts are idempotent, cannot track changes
+  failed_when: "shell_results.rc != 0"
+
+- name: Run post-install scripts for active packages
+  ansible.builtin.shell:
+    cmd: "{{ item.post_script }}"
+  loop: "{{ active_package_defs }}"
+  when: item.post_script is defined
+
+# =========================================================================
+# GIT FILE INSTALLATIONS
+# =========================================================================
+- name: Create temporary directory for git clones
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: _git_clone
+  register: git_temp_dir
+  when: active_git_files | length > 0
+
+- name: Clone git repositories and copy specified files
+  block:
+    - name: Clone git repository
+      ansible.builtin.git:
+        repo: "{{ item.url }}"
+        dest: "{{ git_temp_dir.path }}/{{ item.url | regex_replace('[^a-zA-Z0-9]', '_') }}"
+        force: true
+      loop: "{{ active_git_files }}"
+      loop_control:
+        label: "{{ item.url }}"
+
+    - name: Ensure target directory exists
+      ansible.builtin.file:
+        path: "{{ item.target_path | replace('~', ansible_env.HOME) }}"
+        state: directory
+        mode: '0755'
+      loop: "{{ active_git_files }}"
+
+    - name: Copy file from git repository to target
+      ansible.builtin.copy:
+        src: "{{ git_temp_dir.path }}/{{ item.url | regex_replace('[^a-zA-Z0-9]', '_') }}/{{ item.repo_path }}"
+        dest: "{{ item.target_path | replace('~', ansible_env.HOME) }}/{{ item.repo_path | basename }}"
+        mode: '0755'
+      loop: "{{ active_git_files }}"
+
+    - name: Create source tracking file
+      ansible.builtin.copy:
+        content: |
+          Source: {{ item.url }}
+          Repository path: {{ item.repo_path }}
+          Target path: {{ item.target_path | replace('~', ansible_env.HOME) }}/{{ item.repo_path | basename }}
+          Installed by: macOS bootstrap script
+          Installation date: {{ ansible_date_time.iso8601 }}
+        dest: "{{ item.target_path | replace('~', ansible_env.HOME) }}/{{ item.repo_path | basename }}.source"
+        mode: '0644'
+      loop: "{{ active_git_files }}"
+
+  always:
+    - name: Clean up temporary git clone directory
+      ansible.builtin.file:
+        path: "{{ git_temp_dir.path }}"
+        state: absent
+      when: git_temp_dir.path is defined
+
+  when: active_git_files | length > 0
+
+# =========================================================================
+# 4. DOTFILES SYMLINKING
+# =========================================================================
+
+- name: Symlink config files from package definitions
+  ansible.builtin.file:
+    src: "{{ dotfiles_repo }}/{{ item.src }}"
+    dest: "{{ item.dest | replace('~', ansible_env.HOME) }}"
+    state: link
+    force: true
+  loop: "{{ active_config_links }}"
+  when: configure_dotfiles
+
+- name: Copy files from package definitions
+  ansible.builtin.copy:
+    src: "{{ dotfiles_repo }}/{{ item.src }}"
+    dest: "{{ item.dest | replace('~', ansible_env.HOME) }}"
+    mode: '0644'
+    force: "{{ overwrite_config_copy | default(false) }}"
+    backup: "{{ backup_config_copy | default(true) }}"
+  loop: "{{ active_copy_files }}"
+  when: configure_dotfiles
+
+# =========================================================================
+# 5. PACKAGE SYMLINKS & ZCOMPILE BYTECODE
+# =========================================================================
+- name: Check for package env files
+  ansible.builtin.stat:
+    path: "{{ dotfiles_repo }}/packages/{{ item }}/env.zsh"
+  register: env_stats
+  loop: "{{ resolved_packages }}"
+
+- name: Symlink enabled package envs to zsh/env.d/
+  ansible.builtin.file:
+    src: "{{ item.stat.path }}"
+    dest: "{{ zsh_config_path }}/env.d/{{ item.item }}.zsh"
+    state: link
+    force: true
+  loop: "{{ env_stats.results }}"
+  when: item.stat.exists
+
+- name: Find functions in enabled packages
+  ansible.builtin.find:
+    paths: "{{ dotfiles_repo }}/packages/{{ item }}/functions"
+    file_type: file
+  register: function_files
+  loop: "{{ resolved_packages }}"
+  ignore_errors: true
+
+- name: Symlink package functions to zsh/functions/
+  ansible.builtin.file:
+    src: "{{ item.path }}"
+    dest: "{{ zsh_config_path }}/functions/{{ item.path | basename }}"
+    state: link
+    force: true
+  loop: "{{ function_files.results | selectattr('files', 'defined') | map(attribute='files') | flatten }}"
+
+- name: Compile Zsh configuration files to bytecode (.zwc)
+  ansible.builtin.command:
+    cmd: "zsh -c 'autoload -U zrecompile; for f in {{ zsh_config_path }}/env.d/*.zsh(N); do zrecompile -p -R $f; done'"
+  changed_when: false
+# =========================================================================
+# 6. COMPLETION HANDLING (STATIC & DYNAMIC)
+# =========================================================================
+
+# --- Task A: Symlink Static Completion Files from Repo ---
+- name: Find static completion files in active packages
+  ansible.builtin.find:
+    paths: "{{ dotfiles_repo }}/packages/{{ item }}/completions"
+    file_type: file
+  register: static_completions
+  loop: "{{ resolved_packages }}"
+  ignore_errors: true
+
+- name: Symlink static completion files to zsh/completions/
+  ansible.builtin.file:
+    src: "{{ item.path }}"
+    dest: "{{ zsh_config_path }}/completions/{{ item.path | basename }}"
+    state: link
+    force: true
+  loop: "{{ static_completions.results | selectattr('files', 'defined') | map(attribute='files') | flatten }}"
+
+# --- Task B: Generate Dynamic CLI Completions from package.yml ---
+- name: Extract dynamic completion generators from active packages
+  ansible.builtin.set_fact:
+    active_cli_completions: >-
+      {%- set list = [] -%}
+      {%- for pkg in active_package_defs -%}
+        {%- if pkg.completions is defined -%}
+          {%- if pkg.completions is string -%}
+            {%- set _ = list.append(pkg.completions) -%}
+          {%- else -%}
+            {%- set _ = list.extend(pkg.completions) -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ list | unique }}
+
+- name: Pre-generate static CLI completion files
+  ansible.builtin.shell:
+    cmd: "{{ item.cmd }} > {{ zsh_config_path }}/completions/_{{ item.name }}"
+    creates: "{{ zsh_config_path }}/completions/_{{ item.name }}"
+  loop: "{{ active_cli_completions }}"
+  when: active_cli_completions | length > 0
+
+# =========================================================================
+# 7. ANTIDOTE PLUGIN MANAGEMENT
+# =========================================================================
+- name: Extract Antidote plugins from active packages
+  ansible.builtin.set_fact:
+    active_antidote_plugins: >-
+      {%- set list = [] -%}
+      {%- for pkg in active_package_defs -%}
+        {%- if pkg.antidote is defined -%}
+          {%- if pkg.antidote is string -%}
+            {%- set _ = list.append(pkg.antidote) -%}
+          {%- else -%}
+            {%- set _ = list.extend(pkg.antidote) -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ list | unique }}
+
+- name: Generate ~/.zsh_plugins.txt from active package definitions
+  ansible.builtin.template:
+    src: zsh_plugins.txt.j2
+    dest: "{{ zsh_config_path }}/.zsh_plugins.txt"
+    mode: '0644'
+  when: active_antidote_plugins | length > 0

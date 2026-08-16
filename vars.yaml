@@ -1,0 +1,43 @@
+# TODO - make configuration in var.yml more dynamic.. break casks and formulae into packages_roles and then use "install_package_roles" as list to just loop through and install all- so it's easier to add new roles instead of touching playbook- updated vars now need to ajust playbook
+# TODO - make package_role modify zshrc, aliases and path var according to installed packages (e.g adding k, kx, kn, etc only if kuberenets role was installed)
+
+---
+# =============================================================================
+# macOS Bootstrap Configuration
+# Toggle packages on/off without modifying playbook.yml
+# =============================================================================
+
+# --- Feature toggles ---------------------------------------------------------
+install_packages: ["core", "developer", "python", "cursor"]
+configure_dotfiles: true
+base_config_path: "{{ ansible_env.HOME }}/.config"
+zsh_config_path: "{{ base_config_path }}/zsh"
+overwrite_config_copy: false
+backup_config_copy: true
+configure_system_defaults: false
+
+# --- Dotfiles (symlinked when configure_dotfiles is true) --------------------
+dotfiles_repo: "{{ playbook_dir }}/.dotfiles"
+    
+# --- macOS system defaults (applied when configure_system_defaults is true) ---
+system_configurations:
+  input_devices:
+    # Keyboard repeat rate (lower = faster; default is 6, fast is 2)
+    keyboard_key_repeat_rate: 2
+    # Initial delay before key repeat starts (lower = shorter delay; default is 25)
+    keyboard_delay_until_repeat: 15
+    trackpad_enable_tap_click_global: true
+    trackpad_enable_tap_click_driver: true
+    trackpad_enable_three_finger_drag: true
+  finder:
+    show_hidden_files: true
+    show_file_extensions: true
+    default_search_scope: "SCcf"
+    show_path_bar: true
+  spotlight:
+    disable_hotkey: true
+  desktop:
+    hide_all_items: true
+  dock:
+    autohide: true
+    position: "left"

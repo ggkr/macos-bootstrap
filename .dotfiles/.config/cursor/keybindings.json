@@ -1,0 +1,11 @@
+[
+    {
+        "key": "cmd+shift+l",
+        "command": "composer.newAgentChat",
+        "when": "agentsPaneFocused"
+    },
+    {
+        "key": "cmd+shift+l",
+        "command": "-composer.newAgentChat"
+    }
+]

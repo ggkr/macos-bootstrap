@@ -1,0 +1,14 @@
+required_packages:
+  - python
+brew:
+  casks:
+    - antigravity-ide
+    - antigravity-cli
+shell:
+  antigravity: uv tool install graphifyy
+
+config_links:
+  .config/antigravity/mcp_config.json: ~/.gemini/config/mcp_config.json
+  .config/antigravity/keybindings.json: ~/Library/Application Support/Antigravity IDE/User/keybindings.json
+  .config/antigravity/settings.json: ~/Library/Application Support/Antigravity IDE/User/settings.json
+  

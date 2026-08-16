@@ -1,0 +1,6 @@
+curl:
+  - https://astral.sh/uv/install.sh
+post_script: |
+    ABS_LATEST=$(uv python list --all-versions | tr -d ' ' | grep -E '^3\.[0-9]+\.[0-9]+$' | tail -1)
+    uv python install "$ABS_LATEST" --default
+    uv python update-shell

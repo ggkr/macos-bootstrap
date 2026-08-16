@@ -1,0 +1,4 @@
+brew:
+  formulae:
+    - tofuenv # easily switch between terraform versions
+    - warrensbox/tap/tgswitch # easily switch between terragrunt versions

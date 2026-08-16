@@ -1,0 +1,197 @@
+name: Test macOS Bootstrap Playbook
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test-playbook:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+      
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.x'
+        
+    - name: Install Ansible
+      run: |
+        pip install ansible-core
+        
+    - name: Install Ansible collections
+      run: |
+        ansible-galaxy collection install community.general
+        
+    - name: Validate YAML syntax
+      run: |
+        python -c "
+        import yaml
+        import sys
+        import glob
+        
+        files = [
+          'playbook.yaml',
+          'vars.yaml', 
+          'tasks/installations.yaml',
+          'tasks/system-configurations.yaml'
+        ]
+        
+        files.extend(glob.glob('.dotfiles/packages/*/package.yaml'))
+        
+        for f in files:
+          try:
+            with open(f) as file:
+              yaml.safe_load(file)
+            print(f'✓ Valid YAML: {f}')
+          except Exception as e:
+            print(f'✗ Invalid YAML: {f} - {e}')
+            sys.exit(1)
+        "
+        
+    - name: Run Ansible syntax check
+      run: |
+        ansible-playbook playbook.yaml --syntax-check
+        
+    - name: Test playbook with minimal configuration
+      run: |
+        cat > vars.test.yaml << 'EOF'
+        ---
+        install_packages: ["core"]
+        configure_dotfiles: true
+        base_config_path: "{{ ansible_env.HOME }}/.config"
+        zsh_config_path: "{{ base_config_path }}/zsh"
+        overwrite_config_copy: false
+        backup_config_copy: true
+        configure_system_defaults: false
+        dotfiles_repo: "{{ playbook_dir }}/.dotfiles"
+        dotfiles_zshrc_src: "{{ dotfiles_repo }}/.zshrc"
+        system_configurations:
+          input_devices:
+            keyboard_key_repeat_rate: 2
+            keyboard_delay_until_repeat: 15
+            trackpad_enable_tap_click_global: true
+            trackpad_enable_tap_click_driver: true
+            trackpad_enable_three_finger_drag: true
+          finder:
+            show_hidden_files: true
+            show_file_extensions: true
+            default_search_scope: "SCcf"
+            show_path_bar: true
+          spotlight:
+            disable_hotkey: true
+          desktop:
+            hide_all_items: true
+          dock:
+            autohide: true
+            position: "left"
+        EOF
+        
+        ansible-playbook playbook.yaml --extra-vars "@vars.test.yaml" --check
+        
+    - name: Test dependency resolution
+      run: |
+        cat > vars.deps-test.yaml << 'EOF'
+        ---
+        install_packages: ["antigravity"]
+        configure_dotfiles: false
+        base_config_path: "{{ ansible_env.HOME }}/.config"
+        zsh_config_path: "{{ base_config_path }}/zsh"
+        overwrite_config_copy: false
+        backup_config_copy: true
+        configure_system_defaults: false
+        dotfiles_repo: "{{ playbook_dir }}/.dotfiles"
+        dotfiles_zshrc_src: "{{ dotfiles_repo }}/.zshrc"
+        system_configurations:
+          input_devices:
+            keyboard_key_repeat_rate: 2
+            keyboard_delay_until_repeat: 15
+            trackpad_enable_tap_click_global: true
+            trackpad_enable_tap_click_driver: true
+            trackpad_enable_three_finger_drag: true
+          finder:
+            show_hidden_files: true
+            show_file_extensions: true
+            default_search_scope: "SCcf"
+            show_path_bar: true
+          spotlight:
+            disable_hotkey: true
+          desktop:
+            hide_all_items: true
+          dock:
+            autohide: true
+            position: "left"
+        EOF
+        
+        ansible-playbook playbook.yaml --extra-vars "@vars.deps-test.yaml" --check --tags debug
+        
+    - name: Test system configuration tasks
+      run: |
+        cat > vars.sysconfig-test.yaml << 'EOF'
+        ---
+        install_packages: ["core"]
+        configure_dotfiles: false
+        base_config_path: "{{ ansible_env.HOME }}/.config"
+        zsh_config_path: "{{ base_config_path }}/zsh"
+        overwrite_config_copy: false
+        backup_config_copy: true
+        configure_system_defaults: true
+        dotfiles_repo: "{{ playbook_dir }}/.dotfiles"
+        dotfiles_zshrc_src: "{{ dotfiles_repo }}/.zshrc"
+        system_configurations:
+          input_devices:
+            keyboard_key_repeat_rate: 2
+            keyboard_delay_until_repeat: 15
+            trackpad_enable_tap_click_global: true
+            trackpad_enable_tap_click_driver: true
+            trackpad_enable_three_finger_drag: true
+          finder:
+            show_hidden_files: true
+            show_file_extensions: true
+            default_search_scope: "SCcf"
+            show_path_bar: true
+          spotlight:
+            disable_hotkey: true
+          desktop:
+            hide_all_items: true
+          dock:
+            autohide: true
+            position: "left"
+        EOF
+        
+        ansible-playbook playbook.yaml --extra-vars "@vars.sysconfig-test.yaml" --check
+        
+    - name: Clean up temporary test files
+      if: always()
+      run: |
+        rm -f vars.test.yaml vars.deps-test.yaml vars.sysconfig-test.yaml
+        
+    - name: Verify package definitions are complete
+      run: |
+        python -c "
+        import yaml
+        import glob
+        import sys
+        
+        package_files = glob.glob('.dotfiles/packages/*/package.yaml')
+        required_fields = ['brew', 'curl', 'shell', 'git', 'antidote', 'config_links', 'config_copy', 'completions']
+        
+        for pkg_file in package_files:
+          with open(pkg_file) as f:
+            pkg = yaml.safe_load(f)
+          
+          pkg_name = pkg_file.split('/')[-2]
+          
+          # Check if package has at least one installation method
+          has_install_method = any(field in pkg for field in ['brew', 'curl', 'shell', 'git'])
+          
+          if not has_install_method:
+            print(f'⚠ Warning: {pkg_name} has no installation method defined')
+          
+          print(f'✓ Package {pkg_name} definition check passed')
+        "

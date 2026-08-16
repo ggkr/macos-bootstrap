@@ -1,0 +1,14 @@
+function find_cloudfront() {
+  if [[ -n $1 ]]; then
+    domain=$1
+  else
+    echo "Please enter the domain to search related acm: "
+    read domain
+  fi
+
+  if [[ -n $2 ]]; then
+    aws cloudfront list-distributions --query "DistributionList.Items[?Aliases.Items!=null] | [?contains(Aliases.Items, '$domain')]"
+  else
+    aws cloudfront list-distributions --query "DistributionList.Items[?Aliases.Items!=null] | [?contains(Aliases.Items, '$domain')].[Id,DomainName]" --output text
+  fi
+}

@@ -1,0 +1,9 @@
+function argo_login() {
+  password=$(kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d)
+  if [[ -n $1 && "$1" == "local" ]]; then
+    ARGOCD_OPTS='--port-forward-namespace argocd' argocd login --username admin --password $password --insecure
+  else
+    server=$(k get ingress -n argocd argocd-server -o jsonpath="{.spec.rules[0].host}")
+    argocd login $server --username admin --password $password
+  fi
+}

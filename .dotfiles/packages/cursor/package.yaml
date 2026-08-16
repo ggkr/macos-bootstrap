@@ -1,0 +1,10 @@
+brew:
+  casks:
+    - cursor
+
+config_links:
+  .config/cursor/settings.json: ~/Library/Application Support/Cursor/User/settings.json
+  .config/cursor/keybindings.json: ~/Library/Application Support/Cursor/User/keybindings.json
+  .config/cursor/mcp.json: ~/.cursor/mcp.json
+
+  

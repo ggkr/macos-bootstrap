@@ -1,0 +1,25 @@
+find_do_not_disrupt_pods() {
+  local ns_flag="" 
+  # yes.. I can pass directly to the kubectl command- this leaves it open for other filters if needed (e.g filter on a specific node)
+  for arg in "$@"; do
+    case "$arg" in
+      -A|--all-namespaces)
+        ns_flag="-A"
+        ;;
+    esac
+  done
+
+  kubectl get pods $ns_flag -o json \
+    | jq -r '
+        .items[]
+        | select(.metadata.annotations["karpenter.sh/do-not-disrupt"] == "true")
+        | [
+            .metadata.name,
+            .metadata.namespace,
+            .spec.nodeName,
+            .metadata.annotations["karpenter.sh/do-not-disrupt"]
+          ]
+        | @tsv
+      ' \
+    | column -t
+}

@@ -1,0 +1,44 @@
+function knodes() {
+    kubectl get nodes -o json | jq -r '
+    def cpu_human:
+        if . == null then "<none>"
+        elif test("m$") then ((rtrimstr("m") | tonumber) / 1000 | tostring)
+        else .
+        end;
+
+    def mem_to_ki:
+        if test("Ki$") then (rtrimstr("Ki") | tonumber)
+        elif test("Mi$") then (rtrimstr("Mi") | tonumber) * 1024
+        elif test("Gi$") then (rtrimstr("Gi") | tonumber) * 1048576
+        elif test("Ti$") then (rtrimstr("Ti") | tonumber) * 1073741824
+        else (tonumber / 1024)
+        end;
+
+    def mem_human:
+        if . == null then "<none>"
+        else (. | mem_to_ki) as $ki |
+        if $ki >= 1073741824 then "\(($ki / 1073741824 * 10 | floor) / 10)Ti"
+        elif $ki >= 1048576 then "\(($ki / 1048576 * 10 | floor) / 10)Gi"
+        elif $ki >= 1024 then "\(($ki / 1024 * 10 | floor) / 10)Mi"
+        else "\($ki)Ki"
+        end
+        end;
+
+    (["NAME", "STATUS", "AGE", "VERSION", "AWS_INSTANCE_ID", "INSTANCE_TYPE", "CPU", "RAM", "ZONE", "NODECLAIM", "INSTANCE_TYPES"] | @tsv),
+    (.items[] | [
+        .metadata.name,
+        (if (.spec.unschedulable // false) then "SchedulingDisabled"
+        elif (.status.conditions[] | select(.type == "Ready") | .status) == "True" then "Ready"
+        elif (.status.conditions[] | select(.type == "Ready") | .status) == "False" then "NotReady"
+        else "Unknown" end),
+        .metadata.creationTimestamp,
+        .status.nodeInfo.kubeletVersion,
+        (.spec.providerID | split("/") | .[-1]),
+        (.metadata.labels."node.kubernetes.io/instance-type" // "<none>"),
+        (.status.capacity.cpu | cpu_human),
+        (.status.capacity.memory | mem_human),
+        (.metadata.labels."topology.kubernetes.io/zone" // "<none>"),
+        ((.metadata.ownerReferences[]? | select(.kind == "NodeClaim") | .name) // "<none>"),
+        (.metadata.labels."instance-types" // "<none>")
+    ] | @tsv)' | column -t
+}

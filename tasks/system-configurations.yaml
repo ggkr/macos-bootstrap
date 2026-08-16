@@ -1,0 +1,144 @@
+# =====================================================================
+# SPOTLIGHT
+# =====================================================================
+- name: Disable Spotlight hotkey (Cmd+Space) — AppleSymbolicHotKeys key 64
+  ansible.builtin.shell: |
+    set -euo pipefail
+    PLIST="${HOME}/Library/Preferences/com.apple.symbolichotkeys.plist"
+    /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64 dict" "$PLIST" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:enabled bool false" "$PLIST" 2>/dev/null \
+      || /usr/libexec/PlistBuddy -c "Set :AppleSymbolicHotKeys:64:enabled false" "$PLIST"
+    /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value dict" "$PLIST" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value:type string standard" "$PLIST" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value:parameters array" "$PLIST" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value:parameters:0 integer 97" "$PLIST" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value:parameters:1 integer 49" "$PLIST" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value:parameters:2 integer 262144" "$PLIST" 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  changed_when: true
+  notify: restart system ui
+  when: system_configurations.spotlight.disable_hotkey | default(false) | bool
+# =========================================================================
+# FINDER & NAVIGATION
+# =========================================================================
+- name: Finder - Show all filename extensions
+  community.general.osx_defaults:
+    domain: NSGlobalDomain
+    key: AppleShowAllExtensions
+    type: bool
+    value: "{{ system_configurations.finder.show_file_extensions }}"
+    state: present
+  notify: Restart Finder
+  when: system_configurations.finder.show_file_extensions | default(false) | bool
+
+- name: Finder - Show hidden files
+  community.general.osx_defaults:
+    domain: com.apple.finder
+    key: AppleShowAllFiles
+    type: bool
+    value: "{{ system_configurations.finder.show_hidden_files }}"
+    state: present
+  notify: Restart Finder
+  when: system_configurations.finder.show_hidden_files | default(false) | bool
+
+- name: Finder - Set default search scope to current folder
+  community.general.osx_defaults:
+    domain: com.apple.finder
+    key: FXDefaultSearchScope
+    type: string
+    value: "{{ system_configurations.finder.default_search_scope }}"
+    state: present
+  notify: Restart Finder
+  when: system_configurations.finder.default_search_scope | default(false) | bool
+
+- name: Finder - Show Path Bar
+  community.general.osx_defaults:
+    domain: com.apple.finder
+    key: ShowPathbar
+    type: bool
+    value: "{{ system_configurations.finder.show_path_bar }}"
+    state: present
+  notify: Restart Finder
+  when: system_configurations.finder.show_path_bar | default(false) | bool
+
+# =========================================================================
+# TRACKPAD, MOUSE & KEYBOARD
+# =========================================================================
+- name: Trackpad - Enable Tap to Click (Global)
+  community.general.osx_defaults:
+    domain: NSGlobalDomain
+    key: com.apple.mouse.tapBehavior
+    type: int
+    value: "{{ system_configurations.input_devices.trackpad_enable_tap_click_global | int }}"
+    state: present
+  when: system_configurations.input_devices.trackpad_enable_tap_click_global | default(false) | bool
+
+- name: Trackpad - Enable Tap to Click (Driver)
+  community.general.osx_defaults:
+    domain: com.apple.applemultitouchtrackpad
+    key: Clicking
+    type: int
+    value: "{{ system_configurations.input_devices.trackpad_enable_tap_click_driver | int }}"
+    state: present
+  when: system_configurations.input_devices.trackpad_enable_tap_click_driver | default(false) | bool
+
+- name: Trackpad - Enable Three-Finger Drag
+  community.general.osx_defaults:
+    domain: com.apple.applemultitouchtrackpad
+    key: TrackpadThreeFingerDrag
+    type: int
+    value: "{{ system_configurations.input_devices.trackpad_enable_three_finger_drag | int }}"
+    state: present
+  when: system_configurations.input_devices.trackpad_enable_three_finger_drag | default(false) | bool
+
+- name: Keyboard - Set Key Repeat Rate (Fast)
+  community.general.osx_defaults:
+    domain: NSGlobalDomain
+    key: KeyRepeat
+    type: int
+    value: "{{ system_configurations.input_devices.keyboard_key_repeat_rate }}"
+    state: present
+  when: system_configurations.input_devices.keyboard_key_repeat_rate | default(false) | bool
+
+- name: Keyboard - Set Delay Until Repeat (Short)
+  community.general.osx_defaults:
+    domain: NSGlobalDomain
+    key: InitialKeyRepeat
+    type: int
+    value: "{{ system_configurations.input_devices.keyboard_delay_until_repeat }}"
+    state: present
+  when: system_configurations.input_devices.keyboard_delay_until_repeat | default(false) | bool
+
+# =========================================================================
+# DESKTOP & DOCK
+# =========================================================================
+- name: Dock - Automatically hide and show
+  community.general.osx_defaults:
+    domain: com.apple.dock
+    key: autohide
+    type: bool
+    value: "{{ system_configurations.dock.autohide | bool }}"
+    state: present
+  notify: Restart Dock
+  when: system_configurations.dock.autohide | default(true) | bool
+
+- name: Dock - Position on screen (left)
+  community.general.osx_defaults:
+    domain: com.apple.dock
+    key: orientation
+    type: string
+    value: "{{ system_configurations.dock.position }}"
+    state: present
+  notify: Restart Dock
+  when: system_configurations.dock.position | default("false") | bool
+
+- name: Desktop - Hide all items
+  community.general.osx_defaults:
+    domain: com.apple.finder
+    key: CreateDesktop
+    type: bool
+    value: "{{ system_configurations.desktop.hide_all_items | bool }}"
+    state: present
+  notify: Restart Finder
+  when: system_configurations.desktop.hide_all_items | default(false) | bool

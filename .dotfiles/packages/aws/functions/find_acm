@@ -1,0 +1,14 @@
+function find_acm() {
+  if [[ -n $1 ]]; then
+    domain=$1
+  else
+    echo "Please enter the domain to search related acm: "
+    read domain
+  fi
+
+  if [[ -n $2 ]]; then
+    aws acm list-certificates --query "CertificateSummaryList[?contains(DomainName, '$domain')]"
+  else
+    aws acm list-certificates --query "CertificateSummaryList[?contains(DomainName, '$domain')].CertificateArn" --output text
+  fi
+}

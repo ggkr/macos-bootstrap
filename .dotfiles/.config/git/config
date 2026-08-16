@@ -1,0 +1,12 @@
+[init]
+        defaultBranch = main
+[core]
+        sshCommand = ssh
+        autocrlf = false
+        excludesfile = ~/.gitignore_global
+[url "git@github.com:"]
+        insteadOf = https://github.com/
+[commit]
+        gpgsign = true
+[tag]
+        gpgSign = true

@@ -1,0 +1,8 @@
+function clean_tf() {
+  rm -r **/.terraform.lock.hcl | true
+  rm -Rf **/.terragrunt-cache  | true
+  if [[ -n "$TF_PLUGIN_CACHE_DIR" ]]; then
+    # if is important.. otherwise you will start deleting your home folder..
+    rm -Rf ${TF_PLUGIN_CACHE_DIR}/* | true
+  fi
+}
