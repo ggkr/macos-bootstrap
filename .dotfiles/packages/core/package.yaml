@@ -1,7 +1,5 @@
 brew:
   formulae:
-    - curl
-    - wget
     - starship
     - antidote # zsh plugins manager
     - vim
