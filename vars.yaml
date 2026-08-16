@@ -8,7 +8,7 @@
 # =============================================================================
 
 # --- Feature toggles ---------------------------------------------------------
-install_packages: ["core", "developer", "python", "cursor"]
+install_packages: ["developer", "python", "cursor"]
 configure_dotfiles: true
 base_config_path: "{{ ansible_env.HOME }}/.config"
 zsh_config_path: "{{ base_config_path }}/zsh"

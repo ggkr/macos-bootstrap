@@ -62,7 +62,7 @@ jobs:
       run: |
         cat > vars.test.yaml << 'EOF'
         ---
-        install_packages: ["core"]
+        install_packages: []
         configure_dotfiles: true
         base_config_path: "{{ ansible_env.HOME }}/.config"
         zsh_config_path: "{{ base_config_path }}/zsh"
@@ -134,7 +134,7 @@ jobs:
       run: |
         cat > vars.sysconfig-test.yaml << 'EOF'
         ---
-        install_packages: ["core"]
+        install_packages: []
         configure_dotfiles: false
         base_config_path: "{{ ansible_env.HOME }}/.config"
         zsh_config_path: "{{ base_config_path }}/zsh"
