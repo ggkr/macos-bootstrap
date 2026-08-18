@@ -1,6 +1,5 @@
 brew:
   formulae:
-    - git
     - starship
     - antidote # zsh plugins manager
     - vim

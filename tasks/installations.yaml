@@ -1,5 +1,30 @@
 # =========================================================================
-# 1. SETUP & DIRECTORY CREATION
+# 1. DETERMINE DOTFILES REPOSITORY PATH
+# =========================================================================
+- name: Set dotfiles repository path
+  ansible.builtin.set_fact:
+    dotfiles_repo_active: >-
+      {{ 
+        dotfiles_repo if (dotfiles_repo_url is defined and dotfiles_repo_url | length > 0) 
+        else dotfiles_repo_fallback 
+      }}
+
+- name: Set packages repository path
+  ansible.builtin.set_fact:
+    packages_repo_active: >-
+      {{ 
+        packages_repo if (packages_repo is defined and packages_repo_url is defined and packages_repo_url | length > 0) 
+        else dotfiles_repo_active 
+      }}
+
+- name: Display active repository paths
+  ansible.builtin.debug:
+    msg: 
+      - "Dotfiles repository: {{ dotfiles_repo_active }}"
+      - "Packages repository: {{ packages_repo_active }}"
+
+# =========================================================================
+# 2. SETUP & DIRECTORY CREATION
 # =========================================================================
 - name: Ensure target Zsh configuration directories exist
   ansible.builtin.file:
@@ -14,11 +39,11 @@
     - "{{ zsh_config_path }}/completions"
     
 # =========================================================================
-# 2. LOAD PACKAGE DEFINITIONS & RESOLVE DEPENDENCIES
+# 3. LOAD PACKAGE DEFINITIONS & RESOLVE DEPENDENCIES
 # =========================================================================
-- name: Find all available package.yaml files in dotfiles
+- name: Find all available package.yaml files in packages repository
   ansible.builtin.find:
-    paths: "{{ dotfiles_repo }}/packages"
+    paths: "{{ packages_repo_active }}/packages"
     patterns: "package.yaml"
     recurse: true
   register: found_pkg_files
@@ -269,7 +294,7 @@
 
 - name: Symlink config files from package definitions
   ansible.builtin.file:
-    src: "{{ dotfiles_repo }}/{{ item.src }}"
+    src: "{{ dotfiles_repo_active }}/{{ item.src }}"
     dest: "{{ item.dest | replace('~', ansible_env.HOME) }}"
     state: link
     force: true
@@ -278,7 +303,7 @@
 
 - name: Copy files from package definitions
   ansible.builtin.copy:
-    src: "{{ dotfiles_repo }}/{{ item.src }}"
+    src: "{{ dotfiles_repo_active }}/{{ item.src }}"
     dest: "{{ item.dest | replace('~', ansible_env.HOME) }}"
     mode: '0644'
     force: "{{ overwrite_config_copy | default(false) }}"
@@ -291,7 +316,7 @@
 # =========================================================================
 - name: Check for package env files
   ansible.builtin.stat:
-    path: "{{ dotfiles_repo }}/packages/{{ item }}/env.zsh"
+    path: "{{ packages_repo_active }}/packages/{{ item }}/env.zsh"
   register: env_stats
   loop: "{{ resolved_packages }}"
 
@@ -306,7 +331,7 @@
 
 - name: Find functions in enabled packages
   ansible.builtin.find:
-    paths: "{{ dotfiles_repo }}/packages/{{ item }}/functions"
+    paths: "{{ packages_repo_active }}/packages/{{ item }}/functions"
     file_type: file
   register: function_files
   loop: "{{ resolved_packages }}"
@@ -331,7 +356,7 @@
 # --- Task A: Symlink Static Completion Files from Repo ---
 - name: Find static completion files in active packages
   ansible.builtin.find:
-    paths: "{{ dotfiles_repo }}/packages/{{ item }}/completions"
+    paths: "{{ packages_repo_active }}/packages/{{ item }}/completions"
     file_type: file
   register: static_completions
   loop: "{{ resolved_packages }}"

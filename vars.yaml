@@ -16,8 +16,29 @@ overwrite_config_copy: false
 backup_config_copy: true
 configure_system_defaults: false
 
-# --- Dotfiles (symlinked when configure_dotfiles is true) --------------------
-dotfiles_repo: "{{ playbook_dir }}/.dotfiles"
+# --- Git Configuration ------------------------------------------------------
+# Optional: Set these if you want to configure git automatically
+# git_user_name: "Your Name"
+# git_user_email: "your.email@example.com"
+# git_setup_ssh: true  # Set to true to generate SSH keys for git
+# git_ssh_key_type: "ed25519"  # or "rsa"
+# git_use_ssh: true  # Use SSH for cloning repositories (set to false for HTTPS)
+
+# --- Repository Configuration -----------------------------------------------
+# Repository URLs for the split structure
+# Update these URLs to match your actual repository locations
+dotfiles_repo: "{{ ansible_env.HOME }}/dotfiles"
+dotfiles_repo_url: "git@github.com:yourusername/dotfiles.git"  # SSH URL
+# dotfiles_repo_url_https: "https://github.com/yourusername/dotfiles.git"  # HTTPS URL (optional)
+
+# Packages repository (if separate from dotfiles)
+# Uncomment and configure if you're using a separate packages repository
+# packages_repo: "{{ ansible_env.HOME }}/macos-packages"
+# packages_repo_url: "git@github.com:yourusername/macos-packages.git"  # SSH URL
+# packages_repo_url_https: "https://github.com/yourusername/macos-packages.git"  # HTTPS URL (optional)
+
+# For backward compatibility: use local dotfiles if repositories aren't configured
+dotfiles_repo_fallback: "{{ playbook_dir }}/.dotfiles"
     
 # --- macOS system defaults (applied when configure_system_defaults is true) ---
 system_configurations:

@@ -31,6 +31,9 @@
       ansible.builtin.set_fact:
         install_packages: "{{ install_packages + ['core'] | unique }}"
 
+    - name: Run git and brew setup tasks
+      ansible.builtin.import_tasks: tasks/git-setup.yaml
+
     - name: Run installation tasks
       ansible.builtin.import_tasks: tasks/installations.yaml
 

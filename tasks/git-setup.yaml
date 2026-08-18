@@ -1,0 +1,224 @@
+# =========================================================================
+# GIT & BREW SETUP TASKS
+# This task file handles the installation of Homebrew, Git, and 
+# cloning of the required repositories for the bootstrap process
+# =========================================================================
+
+# =========================================================================
+# 1. HOMEBREW INSTALLATION
+# =========================================================================
+- name: Check if Homebrew is already installed
+  ansible.builtin.stat:
+    path: /opt/homebrew/bin/brew
+  register: homebrew_check
+  when: ansible_distribution == 'MacOSX' and ansible_architecture == 'arm64'
+
+- name: Check if Homebrew is already installed (Intel)
+  ansible.builtin.stat:
+    path: /usr/local/bin/brew
+  register: homebrew_check_intel
+  when: ansible_distribution == 'MacOSX' and ansible_architecture == 'x86_64'
+
+- name: Install Homebrew (Apple Silicon)
+  ansible.builtin.shell: |
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  args:
+    executable: /bin/bash
+  when: 
+    - ansible_distribution == 'MacOSX' 
+    - ansible_architecture == 'arm64'
+    - not homebrew_check.stat.exists
+
+- name: Install Homebrew (Intel)
+  ansible.builtin.shell: |
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  args:
+    executable: /bin/bash
+  when: 
+    - ansible_distribution == 'MacOSX' 
+    - ansible_architecture == 'x86_64'
+    - not homebrew_check_intel.stat.exists
+
+- name: Add Homebrew to PATH (Apple Silicon)
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.zprofile"
+    line: 'eval "$(/opt/homebrew/bin/brew shellenv)"'
+    create: true
+    mode: '0644'
+  when: 
+    - ansible_distribution == 'MacOSX' 
+    - ansible_architecture == 'arm64'
+
+- name: Add Homebrew to PATH (Intel)
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.zprofile"
+    line: 'eval "$(/usr/local/bin/brew shellenv)"'
+    create: true
+    mode: '0644'
+  when: 
+    - ansible_distribution == 'MacOSX' 
+    - ansible_architecture == 'x86_64'
+
+- name: Set Homebrew path fact
+  ansible.builtin.set_fact:
+    brew_path: "{{ '/opt/homebrew/bin/brew' if (ansible_architecture == 'arm64') else '/usr/local/bin/brew' }}"
+  when: ansible_distribution == 'MacOSX'
+
+# =========================================================================
+# 2. GIT INSTALLATION
+# =========================================================================
+- name: Install Git via Homebrew
+  community.general.homebrew:
+    name: git
+    state: present
+  when: ansible_distribution == 'MacOSX'
+
+# =========================================================================
+# 3. GIT CONFIGURATION (OPTIONAL)
+# =========================================================================
+- name: Configure Git user name
+  ansible.builtin.command:
+    cmd: git config --global user.name "{{ git_user_name }}"
+  when: 
+    - git_user_name is defined
+    - git_user_name | length > 0
+  changed_when: false
+
+- name: Configure Git user email
+  ansible.builtin.command:
+    cmd: git config --global user.email "{{ git_user_email }}"
+  when: 
+    - git_user_email is defined
+    - git_user_email | length > 0
+  changed_when: false
+
+- name: Configure Git default branch
+  ansible.builtin.command:
+    cmd: git config --global init.defaultBranch main
+  changed_when: false
+
+# =========================================================================
+# 4. SSH KEY SETUP (OPTIONAL)
+# =========================================================================
+- name: Check if SSH key already exists
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/.ssh/id_{{ git_ssh_key_type | default('ed25519') }}"
+  register: ssh_key_check
+  when: git_setup_ssh | default(false) | bool
+
+- name: Generate SSH key for Git
+  ansible.builtin.command:
+    cmd: "ssh-keygen -t {{ git_ssh_key_type | default('ed25519') }} -C '{{ git_user_email }}' -f ~/.ssh/id_{{ git_ssh_key_type | default('ed25519') }} -N ''"
+  when: 
+    - git_setup_ssh | default(false) | bool
+    - not ssh_key_check.stat.exists
+  changed_when: false
+
+- name: Display SSH public key
+  ansible.builtin.debug:
+    msg: |
+      SSH key generated. Add this public key to your Git hosting service:
+      {{ lookup('file', ansible_env.HOME + '/.ssh/id_' + (git_ssh_key_type | default('ed25519')) + '.pub') }}
+  when: 
+    - git_setup_ssh | default(false) | bool
+    - not ssh_key_check.stat.exists
+
+- name: Pause for user to add SSH key to Git service
+  ansible.builtin.pause:
+    prompt: "Please add the SSH key above to your Git hosting service (GitHub/GitLab/Bitbucket) and press Enter to continue"
+  when: 
+    - git_setup_ssh | default(false) | bool
+    - not ssh_key_check.stat.exists
+
+- name: Start SSH agent and add key
+  ansible.builtin.shell: |
+    eval "$(ssh-agent -s)"
+    ssh-add ~/.ssh/id_{{ git_ssh_key_type | default('ed25519') }}
+  when: 
+    - git_setup_ssh | default(false) | bool
+    - not ssh_key_check.stat.exists
+  changed_when: false
+
+# =========================================================================
+# 5. CLONE DOTFILES REPOSITORY
+# =========================================================================
+- name: Ensure parent directory for dotfiles exists
+  ansible.builtin.file:
+    path: "{{ dotfiles_repo | dirname }}"
+    state: directory
+    mode: '0755'
+
+- name: Check if dotfiles directory exists
+  ansible.builtin.stat:
+    path: "{{ dotfiles_repo }}"
+  register: dotfiles_check
+
+- name: Clone dotfiles repository (SSH)
+  ansible.builtin.git:
+    repo: "{{ dotfiles_repo_url }}"
+    dest: "{{ dotfiles_repo }}"
+    force: true
+  when: 
+    - not dotfiles_check.stat.exists
+    - git_use_ssh | default(true) | bool
+
+- name: Clone dotfiles repository (HTTPS)
+  ansible.builtin.git:
+    repo: "{{ dotfiles_repo_url_https | default(dotfiles_repo_url | replace('git@', 'https://').replace(':', '/')) }}"
+    dest: "{{ dotfiles_repo }}"
+    force: true
+  when: 
+    - not dotfiles_check.stat.exists
+    - not (git_use_ssh | default(true) | bool)
+
+- name: Update existing dotfiles repository
+  ansible.builtin.git:
+    repo: "{{ dotfiles_repo }}"
+    dest: "{{ dotfiles_repo }}"
+    update: true
+    force: true
+  when: dotfiles_check.stat.exists
+
+# =========================================================================
+# 6. CLONE PACKAGES REPOSITORY (IF SEPARATE)
+# =========================================================================
+- name: Clone packages repository (if separate from dotfiles)
+  block:
+    - name: Ensure parent directory for packages exists
+      ansible.builtin.file:
+        path: "{{ packages_repo | dirname }}"
+        state: directory
+        mode: '0755'
+
+    - name: Check if packages directory exists
+      ansible.builtin.stat:
+        path: "{{ packages_repo }}"
+      register: packages_check
+
+    - name: Clone packages repository (SSH)
+      ansible.builtin.git:
+        repo: "{{ packages_repo_url }}"
+        dest: "{{ packages_repo }}"
+        force: true
+      when: 
+        - not packages_check.stat.exists
+        - git_use_ssh | default(true) | bool
+
+    - name: Clone packages repository (HTTPS)
+      ansible.builtin.git:
+        repo: "{{ packages_repo_url_https | default(packages_repo_url | replace('git@', 'https://').replace(':', '/')) }}"
+        dest: "{{ packages_repo }}"
+        force: true
+      when: 
+        - not packages_check.stat.exists
+        - not (git_use_ssh | default(true) | bool)
+
+    - name: Update existing packages repository
+      ansible.builtin.git:
+        repo: "{{ packages_repo }}"
+        dest: "{{ packages_repo }}"
+        update: true
+        force: true
+      when: packages_check.stat.exists
+
+  when: packages_repo is defined and packages_repo != dotfiles_repo
